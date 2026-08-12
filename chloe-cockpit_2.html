@@ -1,0 +1,1266 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chloe — Supplier Bill Cockpit</title>
+<style>
+  :root{
+    --plane:#0d0d0d; --surface-1:#1a1a19; --surface-2:#222220; --surface-3:#2a2a27;
+    --ink:#ffffff; --ink-2:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --border:rgba(255,255,255,0.10); --border-2:rgba(255,255,255,0.06);
+    --accent:#3987e5; --accent-soft:rgba(57,135,229,0.14);
+    --good:#0ca30c; --warn:#fab219; --serious:#ec835a; --critical:#d03b3b;
+    --good-soft:rgba(12,163,12,0.14); --warn-soft:rgba(250,178,25,0.14);
+    --serious-soft:rgba(236,131,90,0.14); --critical-soft:rgba(208,59,59,0.16);
+    --radius:10px; --radius-sm:7px;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
+    --font:system-ui,-apple-system,"Segoe UI",sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--plane);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+  button{font-family:inherit;cursor:pointer;color:inherit}
+  .tnum{font-variant-numeric:tabular-nums}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:#3a3a37;border-radius:6px;border:2px solid var(--plane)}
+
+  /* ---------- shell ---------- */
+  .app{display:grid;grid-template-columns:220px 1fr;height:100vh}
+  .rail{background:var(--surface-1);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:14px 12px;gap:6px}
+  .brand{display:flex;align-items:center;gap:10px;padding:6px 8px 14px}
+  .brand .mark{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--accent),#7b3ae0);display:grid;place-items:center;font-weight:800;color:#fff}
+  .brand h1{font-size:15px;margin:0;font-weight:700;letter-spacing:.2px}
+  .brand small{display:block;color:var(--muted);font-size:11px;font-weight:500}
+  .navitem{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--radius-sm);color:var(--ink-2);border:1px solid transparent;font-weight:500;font-size:13.5px}
+  .navitem:hover{background:var(--surface-2);color:var(--ink)}
+  .navitem.active{background:var(--accent-soft);color:#fff;border-color:rgba(57,135,229,.35)}
+  .navitem .ic{width:18px;text-align:center;opacity:.9}
+  .navitem .badge{margin-left:auto;background:var(--surface-3);color:var(--ink-2);border-radius:20px;font-size:11px;padding:1px 7px;font-weight:600}
+  .navitem.active .badge{background:var(--accent);color:#fff}
+  .rail .spacer{flex:1}
+  .rail-foot{border-top:1px solid var(--border);padding-top:10px;font-size:11px;color:var(--muted)}
+
+  .main{display:flex;flex-direction:column;min-width:0;overflow:hidden}
+  .topbar{height:52px;flex:0 0 52px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;padding:0 18px;background:var(--surface-1)}
+  .topbar .title{font-weight:600;font-size:14.5px}
+  .topbar .grow{flex:1}
+  .chip{display:inline-flex;align-items:center;gap:7px;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600;border:1px solid var(--border)}
+  .chip .dot{width:7px;height:7px;border-radius:50%}
+  .mode-select{background:var(--surface-2);border:1px solid var(--border);color:var(--ink);border-radius:8px;padding:6px 10px;font-size:12.5px;font-weight:600}
+  .toggle{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+  .toggle button{background:transparent;border:0;padding:6px 12px;font-size:12px;font-weight:600;color:var(--muted)}
+  .toggle button.on{background:var(--accent);color:#fff}
+  .content{flex:1;overflow:auto;padding:20px 22px}
+
+  /* ---------- generic ---------- */
+  .card{background:var(--surface-1);border:1px solid var(--border);border-radius:var(--radius)}
+  .muted{color:var(--muted)}
+  .sec2{color:var(--ink-2)}
+  h2.page{margin:0 0 2px;font-size:18px}
+  .sub{color:var(--muted);font-size:12.5px;margin-bottom:16px}
+  .btn{background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:9px 14px;font-weight:600;font-size:13px;color:var(--ink)}
+  .btn:hover{background:var(--surface-3)}
+  .btn.primary{background:var(--accent);border-color:transparent;color:#fff}
+  .btn.primary:hover{filter:brightness(1.08)}
+  .btn.good{background:var(--good);border-color:transparent;color:#fff}
+  .btn.ghost{background:transparent}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .row{display:flex;gap:10px;align-items:center}
+
+  /* confidence + status pills — color ALWAYS with icon+label */
+  .pill{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:6px;font-size:11.5px;font-weight:700;border:1px solid transparent;white-space:nowrap}
+  .pill .g{font-size:11px}
+  .pill.good{color:#7ee07e;background:var(--good-soft);border-color:rgba(12,163,12,.35)}
+  .pill.warn{color:#ffd274;background:var(--warn-soft);border-color:rgba(250,178,25,.35)}
+  .pill.serious{color:#f4a982;background:var(--serious-soft);border-color:rgba(236,131,90,.35)}
+  .pill.critical{color:#f19393;background:var(--critical-soft);border-color:rgba(208,59,59,.4)}
+  .pill.neutral{color:var(--ink-2);background:var(--surface-2);border-color:var(--border)}
+  .pill.accent{color:#9cc6f5;background:var(--accent-soft);border-color:rgba(57,135,229,.35)}
+
+  /* ---------- review two-pane ---------- */
+  .review-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;height:100%}
+  @media(max-width:1200px){.review-grid{grid-template-columns:1fr}}
+  .pane{display:flex;flex-direction:column;min-height:0}
+  .pane-head{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--border)}
+  .pane-head .t{font-weight:600}
+  .pane-body{overflow:auto;padding:14px}
+
+  /* mock document */
+  .doc{background:#fbfbf7;color:#1a1a1a;border-radius:8px;padding:26px 28px;font-size:12.5px;box-shadow:var(--shadow);position:relative}
+  .doc h3{margin:0 0 2px;font-size:17px;color:#111}
+  .doc .docmeta{color:#555;font-size:11.5px}
+  .doc table{width:100%;border-collapse:collapse;margin-top:14px;font-size:11.5px}
+  .doc th{text-align:left;border-bottom:1.5px solid #333;padding:5px 4px;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:#444}
+  .doc td{padding:5px 4px;border-bottom:1px solid #e6e4dc}
+  .doc .r{text-align:right}
+  .fld{border-radius:4px;padding:0 2px;transition:background .15s,box-shadow .15s;cursor:pointer}
+  .fld:hover{background:#fff3cf}
+  .fld.hot{background:#ffe58a;box-shadow:0 0 0 2px #f0b400}
+  .doc .totrow td{border:0;padding:2px 4px}
+  .doc .grand{font-weight:800;font-size:13.5px}
+  .doc .stamp{position:absolute;top:20px;right:22px;border:2px solid #c0392b;color:#c0392b;font-weight:800;font-size:11px;padding:3px 8px;border-radius:6px;transform:rotate(-8deg);opacity:.85}
+
+  /* review fields */
+  .kv{display:grid;grid-template-columns:120px 1fr auto;gap:8px 12px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border-2)}
+  .kv:last-child{border-bottom:0}
+  .kv .k{color:var(--muted);font-size:12px}
+  .kv .v{font-weight:600}
+  .kv.hot{background:var(--accent-soft);margin:0 -8px;padding:8px;border-radius:6px}
+
+  .block{border:1px solid var(--border);border-radius:9px;margin-bottom:14px;overflow:hidden}
+  .block>.h{padding:10px 12px;background:var(--surface-2);display:flex;align-items:center;gap:8px;font-weight:600;font-size:13px;border-bottom:1px solid var(--border)}
+  .block>.b{padding:12px}
+  .block.alertband>.h{background:var(--critical-soft)}
+  .block.warnband>.h{background:var(--warn-soft)}
+
+  /* question card */
+  .qcard{border:1px solid rgba(57,135,229,.4);background:linear-gradient(180deg,var(--accent-soft),transparent);border-radius:11px;padding:16px;margin-bottom:16px}
+  .qcard .qlabel{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#9cc6f5}
+  .qcard .qtext{font-size:15.5px;font-weight:600;margin:6px 0 4px}
+  .qcard .why{font-size:12px;color:var(--ink-2);margin-bottom:12px}
+
+  /* Chloe persona */
+  .chloe-av{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--accent),#7b3ae0);display:grid;place-items:center;font-weight:800;color:#fff;font-size:14px;flex:0 0 auto;box-shadow:0 0 0 3px rgba(57,135,229,.18)}
+  .chloe-av.sm{width:24px;height:24px;font-size:12px}
+  .chloe-say{display:flex;gap:10px;align-items:flex-start;margin-bottom:12px}
+  .chloe-say .bub{background:var(--surface-2);border:1px solid var(--border);border-radius:4px 12px 12px 12px;padding:9px 12px;font-size:13.5px;color:var(--ink)}
+  .chloe-say .bub b{color:#9cc6f5}
+  .chloe-name{font-size:11px;color:var(--muted);font-weight:600;margin-bottom:3px}
+  .thinking{display:inline-flex;gap:3px;align-items:center}
+  .thinking i{width:5px;height:5px;border-radius:50%;background:var(--accent);display:inline-block;animation:blink 1.2s infinite}
+  .thinking i:nth-child(2){animation-delay:.2s}.thinking i:nth-child(3){animation-delay:.4s}
+  @keyframes blink{0%,60%,100%{opacity:.3}30%{opacity:1}}
+
+  .cand{display:flex;align-items:center;gap:12px;padding:11px 12px;border:1px solid var(--border);border-radius:9px;margin-bottom:8px;background:var(--surface-1)}
+  .cand:hover{border-color:var(--accent);background:var(--surface-2)}
+  .cand .cn{font-weight:600}
+  .cand .cm{font-size:11.5px;color:var(--muted)}
+  .cand .grow{flex:1}
+  .cand.selected{border-color:var(--good);background:var(--good-soft)}
+
+  .line{display:grid;grid-template-columns:64px 1fr 54px 78px;gap:10px;padding:9px 4px;border-bottom:1px solid var(--border-2);align-items:center;font-size:12.5px}
+  .line .sku{color:var(--muted);font-variant-numeric:tabular-nums}
+  .line .desc{font-weight:500}
+  .line .linkline{grid-column:2/-1;font-size:11.5px;color:#7ee0b8;margin-top:2px}
+
+  /* progress */
+  .proc{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:18px;text-align:center;padding:40px}
+  .spin{width:46px;height:46px;border-radius:50%;border:4px solid var(--surface-3);border-top-color:var(--accent);animation:sp 1s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .steps{display:flex;flex-direction:column;gap:9px;font-size:13px;min-width:280px;text-align:left}
+  .steps .s{display:flex;align-items:center;gap:10px;color:var(--muted)}
+  .steps .s.done{color:var(--ink)}
+  .steps .s.active{color:var(--accent);font-weight:600}
+  .tick{width:18px;height:18px;border-radius:50%;border:2px solid var(--surface-3);display:grid;place-items:center;font-size:10px}
+  .s.done .tick{background:var(--good);border-color:var(--good);color:#fff}
+  .s.active .tick{border-color:var(--accent)}
+
+  /* dropzone */
+  .drop{border:2px dashed var(--border);border-radius:14px;padding:48px;text-align:center;background:var(--surface-1);max-width:560px;margin:6vh auto 0}
+  .drop:hover{border-color:var(--accent);background:var(--surface-2)}
+  .drop .big{font-size:34px}
+  .samplebar{display:flex;gap:8px;justify-content:center;margin-top:14px;flex-wrap:wrap}
+
+  /* tables (queue/alerts) */
+  .tbl{width:100%;border-collapse:collapse}
+  .tbl th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:600;padding:9px 12px;border-bottom:1px solid var(--border)}
+  .tbl td{padding:11px 12px;border-bottom:1px solid var(--border-2);font-size:13px}
+  .tbl tr:hover td{background:var(--surface-2)}
+  .tbl tr{cursor:pointer}
+  .grouphdr td{background:var(--surface-2);font-weight:700;font-size:11.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--ink-2);cursor:default}
+  .filters{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+  .fbtn{background:var(--surface-1);border:1px solid var(--border);border-radius:20px;padding:6px 13px;font-size:12.5px;font-weight:600;color:var(--ink-2)}
+  .fbtn.on{background:var(--accent);border-color:transparent;color:#fff}
+  .age{font-variant-numeric:tabular-nums;font-weight:600}
+
+  /* drawer */
+  .drawer-wrap{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;z-index:40}
+  .drawer-wrap.open{display:block}
+  .drawer{position:absolute;top:0;right:0;height:100%;width:min(560px,92vw);background:var(--surface-1);border-left:1px solid var(--border);box-shadow:-20px 0 50px rgba(0,0,0,.5);display:flex;flex-direction:column;animation:slide .18s ease}
+  @keyframes slide{from{transform:translateX(30px);opacity:.4}to{transform:none;opacity:1}}
+  .drawer .dh{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+  .drawer .db{padding:18px;overflow:auto;flex:1}
+  .drawer .df{padding:14px 18px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end}
+  .close{margin-left:auto;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;width:30px;height:30px;font-size:15px}
+
+  .evi{font-size:12px;color:var(--ink-2);background:var(--surface-2);border:1px solid var(--border);border-radius:7px;padding:8px 10px;margin-top:6px}
+  .evi code{color:#9cc6f5}
+  .banner{border-radius:9px;padding:11px 14px;font-size:13px;margin-bottom:14px;display:flex;gap:10px;align-items:flex-start}
+  .banner.info{background:var(--accent-soft);border:1px solid rgba(57,135,229,.35)}
+  .banner.err{background:var(--critical-soft);border:1px solid rgba(208,59,59,.4)}
+  .banner.ok{background:var(--good-soft);border:1px solid rgba(12,163,12,.35)}
+
+  .stat{display:flex;gap:14px;margin-bottom:16px;flex-wrap:wrap}
+  .stat .t{background:var(--surface-1);border:1px solid var(--border);border-radius:10px;padding:12px 16px;min-width:140px}
+  .stat .t .n{font-size:24px;font-weight:700}
+  .stat .t .l{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+
+  label.field{display:block;margin-bottom:12px;font-size:12.5px;color:var(--ink-2)}
+  label.field input{width:100%;margin-top:5px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:9px 11px;color:var(--ink);font-size:13px;font-family:inherit}
+  .hintbox{font-size:12px;color:var(--muted);background:var(--surface-2);border:1px dashed var(--border);border-radius:8px;padding:10px 12px;margin-top:10px}
+
+  /* keyboard */
+  kbd{font-family:var(--font);font-size:11px;font-weight:700;background:var(--surface-3);border:1px solid var(--border);border-bottom-width:2px;border-radius:5px;padding:1px 6px;color:var(--ink-2);min-width:18px;display:inline-block;text-align:center}
+  .kbdbar{display:flex;gap:14px;flex-wrap:wrap;align-items:center;padding:8px 14px;border-top:1px solid var(--border);background:var(--surface-1);font-size:11.5px;color:var(--muted)}
+  .kbdbar span{display:inline-flex;gap:5px;align-items:center}
+  .cand.kfocus,.qcard.kfocus{outline:2px solid var(--accent);outline-offset:2px}
+  .cand.kfocus{border-color:var(--accent);background:var(--surface-2)}
+  /* selection / bulk */
+  .chk{width:16px;height:16px;border:1.5px solid var(--muted);border-radius:4px;display:inline-grid;place-items:center;cursor:pointer;flex:0 0 auto}
+  .chk.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .bulkbar{display:flex;align-items:center;gap:12px;background:var(--accent-soft);border:1px solid rgba(57,135,229,.4);border-radius:10px;padding:10px 14px;margin-bottom:12px}
+  .bulkbar .grow{flex:1}
+  td.selcol,th.selcol{width:34px;text-align:center;padding-left:14px}
+  tr.selected td{background:var(--accent-soft) !important}
+
+  /* ---------- responsive / mobile ---------- */
+  .hamb{display:none;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;width:34px;height:34px;font-size:16px}
+  .rail-scrim{display:none}
+  @media(max-width:900px){
+    .app{grid-template-columns:1fr}
+    .rail{position:fixed;top:0;left:0;bottom:0;width:230px;z-index:50;transform:translateX(-105%);transition:transform .2s}
+    .app.navopen .rail{transform:none;box-shadow:20px 0 50px rgba(0,0,0,.5)}
+    .app.navopen .rail-scrim{display:block;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:45}
+    .hamb{display:grid;place-items:center}
+    .content{padding:14px}
+    .review-grid{grid-template-columns:1fr}
+    /* on mobile, show review pane first (the actionable part) */
+    .review-grid .pane:first-child{order:2}
+    .review-grid .pane:last-child{order:1}
+    .topbar{padding:0 12px;gap:8px}
+    .mode-select{max-width:150px}
+    .kv{grid-template-columns:104px 1fr auto}
+    .line{grid-template-columns:1fr 44px 70px}
+    .line .sku{display:none}
+    .drawer{width:100vw}
+    .stat .t{flex:1;min-width:0}
+    /* queue table -> stacked cards */
+    .tbl.responsive thead{display:none}
+    .tbl.responsive tr{display:block;border:1px solid var(--border);border-radius:10px;margin-bottom:10px;padding:6px 10px;background:var(--surface-1)}
+    .tbl.responsive td{display:flex;justify-content:space-between;gap:12px;border:0;padding:6px 2px;text-align:right}
+    .tbl.responsive td::before{content:attr(data-lbl);color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.4px;text-align:left}
+    .tbl.responsive tr.grouphdr{background:var(--surface-2);padding:8px 12px}
+    .tbl.responsive tr.grouphdr td{display:block;text-align:left}
+    .tbl.responsive tr.grouphdr td::before{content:none}
+  }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <div class="rail-scrim" id="railScrim"></div>
+  <!-- RAIL -->
+  <nav class="rail">
+    <div class="brand">
+      <div class="mark">C</div>
+      <div><h1>Chloe</h1><small>your AI bookkeeper</small></div>
+    </div>
+    <a class="navitem active" data-view="review"><span class="ic">▤</span> Review <span class="badge" id="nav-review">1</span></a>
+    <a class="navitem" data-view="queue"><span class="ic">☰</span> Queue <span class="badge" id="nav-queue">5</span></a>
+    <a class="navitem" data-view="alerts"><span class="ic">◈</span> Alerts <span class="badge" id="nav-alerts">3</span></a>
+    <a class="navitem" data-view="reports"><span class="ic">▦</span> Reports</a>
+    <a class="navitem" data-view="close"><span class="ic">✓</span> Month-end</a>
+    <a class="navitem" data-view="settings"><span class="ic">⚙</span> Settings</a>
+    <div class="spacer"></div>
+    <div class="rail-foot">
+      Prototype · wired to<br><code style="color:#9cc6f5">chloe-private-supplier-bill-v1</code><br>
+      Demo data unless Live is on.
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="topbar">
+      <button class="hamb" id="hamb" aria-label="Menu">☰</button>
+      <span class="title" id="crumb">Review</span>
+      <span class="grow"></span>
+      <select class="mode-select" id="modeSel">
+        <option value="atm_northlakes">atm_northlakes · live</option>
+        <option value="atm_beerwah">atm_beerwah · parked</option>
+      </select>
+      <div class="toggle" id="liveToggle">
+        <button data-live="demo" class="on">Demo</button>
+        <button data-live="live">Live</button>
+      </div>
+      <span class="chip" id="sessChip"><span class="dot" style="background:var(--good)"></span> session ok</span>
+    </div>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+
+<!-- DRAWER -->
+<div class="drawer-wrap" id="drawerWrap">
+  <div class="drawer">
+    <div class="dh"><span id="drawerTitle" style="font-weight:600"></span><button class="close" onclick="closeDrawer()">✕</button></div>
+    <div class="db" id="drawerBody"></div>
+    <div class="df" id="drawerFoot"></div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   Chloe cockpit — vanilla state-driven prototype
+   Mirrors the gateway contract: action + mode -> {state,...}
+   ============================================================ */
+const STATE = {
+  view:'review',
+  mode:'atm_northlakes',
+  live:false,
+  gatewayUrl:'https://mechanicsai.app.n8n.cloud/webhook/chloe-private-supplier-bill-v1',
+  ttsUrl:'https://mechanicsai.app.n8n.cloud/webhook/chloe-tts-v1',
+  sessionToken:'',
+  bill:null,          // current review packet
+  answered:{supplier:false, inventory:false},
+};
+
+/* ---------- confidence -> status bucket (color + icon + label) ---------- */
+function conf(c){
+  if(c>=0.90) return {cls:'good', ic:'✓', label:'High', pct:Math.round(c*100)};
+  if(c>=0.70) return {cls:'warn', ic:'▲', label:'Review', pct:Math.round(c*100)};
+  return {cls:'critical', ic:'!', label:'Uncertain', pct:Math.round(c*100)};
+}
+function confPill(c){const k=conf(c);return `<span class="pill ${k.cls}"><span class="g">${k.ic}</span>${k.label} · ${k.pct}%</span>`;}
+function chloeSay(msg){return `<div class="chloe-say"><div class="chloe-av">C</div><div><div class="chloe-name">Chloe</div><div class="bub">${msg}</div></div></div>`;}
+const money=n=>'$'+Number(n).toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+/* ============================================================
+   MOCK BACKEND (demo mode). Live mode calls the real gateway.
+   ============================================================ */
+const MOCK_BILL = {
+  success:true, state:'review_required', request_id:'req_8a41',
+  summary:{
+    supplier:'Burson Auto Parts', invoice_number:'BUR-559214', invoice_date:'2026-08-07',
+    due_date:'2026-09-06', subtotal:428.15, tax:42.82, total:470.97, currency:'AUD',
+    duplicate_status:'possible', supplier_review_required:true,
+    supplier_match:{contact_id:null,name:'Burson Auto Parts',confidence:0.78,matched_by:'name_fuzzy'},
+    visible_line_count:4, total_line_count:4,
+    abn:'38 100 555 001', tax_invoice_valid:true
+  },
+  line_items:[
+    {supplier_sku:'GUD-Z411', description:'Oil Filter Z411 (spin-on)', quantity:6, unit_price:9.85, line_total:59.10, tax_type:'GST on Expenses'},
+    {supplier_sku:'PEN-15W40-20L', description:'Penrite HPR Diesel 15W-40 20L', quantity:2, unit_price:118.00, line_total:236.00, tax_type:'GST on Expenses'},
+    {supplier_sku:'BRK-DB1765', description:'Bendix Brake Pads DB1765', quantity:1, unit_price:88.05, line_total:88.05, tax_type:'GST on Expenses'},
+    {supplier_sku:'FRT-CORE', description:'Freight & handling', quantity:1, unit_price:45.00, line_total:45.00, tax_type:'GST Free Expenses'}
+  ],
+  supplier_candidates:[
+    {contact_id:'c_burson',name:'Burson Auto Parts Pty Ltd',email:'trade@burson.com.au',confidence:0.78,abn:'38 100 555 001',evidence:['ABN 38 100 555 001 matches invoice','6 prior bills this contact','Bank descriptor "BURSON AUTO"']},
+    {contact_id:'c_bapcor',name:'Bapcor Trade (Burson)',email:'ap@bapcor.com.au',confidence:0.41,abn:'—',evidence:['Parent group name similarity']},
+  ],
+  duplicate_candidates:[
+    {bill_id:'b_5510',bill_number:'BUR-559108',total:470.97,confidence:0.66,evidence:['Same supplier','Identical total $470.97','7 days apart']}
+  ],
+  likely_duplicate:false,
+  inventory_decisions:[
+    {line_index:0, supplier_sku:'GUD-Z411', description:'Oil Filter Z411 (spin-on)', quantity:6,
+      decision:'use_existing_tracked_item',
+      selected_match:{item_id:'i_z411',code:'OIL-FIL-Z411',name:'Oil Filter Z411',is_tracked:true,matched_by:'sku_exact'},
+      candidates:[], confidence:0.96},
+    {line_index:1, supplier_sku:'PEN-15W40-20L', description:'Penrite HPR Diesel 15W-40 20L', quantity:2,
+      decision:'review_or_create_tracked_item', selected_match:null,
+      candidates:[
+        {item_id:'i_pen20',code:'OIL-PEN-15W40-20',name:'Penrite 15W-40 20L',is_tracked:true,confidence:0.72,evidence:['SKU stem match PEN-15W40','Sold on 4 recent invoices']},
+        {item_id:'i_pen5',code:'OIL-PEN-15W40-5',name:'Penrite 15W-40 5L',is_tracked:true,confidence:0.38,evidence:['Same product, different size']}
+      ],
+      required_if_new:{IsTrackedAsInventory:true,InventoryAssetAccountCode:'630',COGSAccountCode:'310'}},
+  ],
+  related_sale_candidates:[
+    {id:'inv_2201',type:'ACCREC',label:'INV-2201',customer:'Kedron Panel & Paint',date:'2026-08-09',confidence:0.88,evidence:['Brake pads DB1765 line sold','2 days after purchase']}
+  ],
+  product_sale_links:{
+    "2":[{invoice_id:'inv_2201',invoice_number:'INV-2201',contact_name:'Kedron Panel & Paint',matched_description:'Bendix Brake Pads DB1765',confidence:0.88}]
+  },
+  blockers:[],
+  targeted_question:{id:'q_supplier',type:'supplier',text:'Is this supplier Burson Auto Parts Pty Ltd?'},
+  next_actions:[{id:'review_matches',label:'Review matches'}]
+};
+
+function deepClone(o){return JSON.parse(JSON.stringify(o));}
+
+/* mock state transitions for the one-question loop */
+function mockAdvance(action, body){
+  const b = STATE.bill;
+  if(action==='match_supplier_bill'){
+    if(!STATE.answered.supplier){
+      STATE.answered.supplier=true;
+      b.summary.supplier_review_required=false;
+      b.summary.supplier_match={contact_id:'c_burson',name:'Burson Auto Parts Pty Ltd',confidence:0.99,matched_by:'user_confirmed'};
+      b.targeted_question={id:'q_inv1',type:'inventory',line_index:1,text:'Which tracked item is “Penrite HPR Diesel 15W-40 20L”?'};
+      return b;
+    }
+    if(!STATE.answered.inventory){
+      STATE.answered.inventory=true;
+      b.inventory_decisions[1].decision='use_existing_tracked_item';
+      b.inventory_decisions[1].selected_match={item_id:'i_pen20',code:'OIL-PEN-15W40-20',name:'Penrite 15W-40 20L',is_tracked:true,matched_by:'user_confirmed'};
+      b.state='ready_for_confirmation';
+      b.targeted_question=null;
+      b.proposed_action='Create Xero DRAFT bill · Burson Auto Parts · '+money(b.summary.total);
+      b.next_actions=[{id:'confirm_supplier_bill_commit',label:'Approve & create draft'}];
+      return b;
+    }
+  }
+  if(action==='commit_supplier_bill'){
+    b.state='completed';
+    b.bill={bill_id:'ATM-DRAFT-1042',bill_number:'BUR-559214',status:'DRAFT',total:b.summary.total};
+    b.targeted_question=null;
+    return b;
+  }
+  return b;
+}
+
+const MOCK_QUEUE = {
+  success:true,state:'ok',queue:'proposed_actions',mode:'atm_northlakes',count:5,
+  actions:[
+    {action_id:'xerodraft:atm_northlakes:INV-88231',action_type:'supplier_bill',status:'ready_for_confirmation',reason:'Xero DRAFT auto-captured, extracted & matched',expected_result:'Create Xero draft bill $470.97',requires_approver_role:'bookkeeper',created_at:'2026-08-11T07:12:00+10:00',age_h:2,payload:{supplier:'Burson Auto Parts',total:470.97,invoice_number:'BUR-559214',source_type:'xero_draft'}},
+    {action_id:'sb:atm_northlakes:req_7c02',action_type:'supplier_bill',status:'exception',reason:'No ABN detected — 47% withholding may apply',expected_result:'Blocked pending ABN',requires_approver_role:'bookkeeper',created_at:'2026-08-10T15:02:00+10:00',age_h:18,payload:{supplier:'QuickFit Tyres (cash)',total:212.00,invoice_number:'—',source_type:'upload'}},
+    {action_id:'outlook:atm_northlakes:req_6b55',action_type:'supplier_bill',status:'awaiting_approval',reason:'Duplicate suspected vs BUR-559108',expected_result:'Review duplicate',requires_approver_role:'bookkeeper',created_at:'2026-08-10T09:40:00+10:00',age_h:26,payload:{supplier:'Repco Trade',total:88.40,invoice_number:'REP-88231',source_type:'outlook_attachment'}},
+    {action_id:'bankrec:atm_northlakes:txn_44112',action_type:'bank_reconciliation',status:'awaiting_approval',reason:'Statement line matches bill BUR-559108',expected_result:'Approve match (reconcile in Xero)',requires_approver_role:'bookkeeper',created_at:'2026-08-11T06:00:00+10:00',age_h:3,payload:{bank_transaction_id:'txn_44112',txn_type:'SPEND',txn_total:470.97,txn_date:'2026-08-10',match_type:'bill',match_number:'BUR-559108',match_contact:'Burson Auto Parts',confidence:0.94,evidence:['Exact amount $470.97','Payee "BURSON AUTO"','Within 3 days']}},
+    {action_id:'bankrec:atm_northlakes:txn_44119',action_type:'bank_reconciliation',status:'exception',reason:'Amount differs from matched invoice by $4.10',expected_result:'Review before approving',requires_approver_role:'bookkeeper',created_at:'2026-08-11T06:00:00+10:00',age_h:3,payload:{bank_transaction_id:'txn_44119',txn_type:'SPEND',txn_total:92.50,txn_date:'2026-08-10',match_type:'bill',match_number:'REP-88231',match_contact:'Repco Trade',confidence:0.61,evidence:['Payee match','Amount off by $4.10 (freight?)']}}
+  ]
+};
+
+const MOCK_NOTES = {
+  success:true,state:'ok',queue:'notifications',mode:'atm_northlakes',count:3,
+  notifications:[
+    {notification_id:'r_jul',subject:'[REPORT] July — P&L & Balance Sheet',body:'July net loss −$37.4k (June −$28.1k). Revenue $112.3k, COGS $71.8k, opex $77.9k. Balance sheet: negative net assets −$41.2k; cash $18.6k; aged payables rising. GST 1B $9.8k payable. Grounded on Xero P&L (mo vs prior) + balance sheet.',channel:'digest',status:'unread',sent_at:'2026-08-01T07:30:00+10:00',sev:'serious',kind:'report'},
+    {notification_id:'n_1',subject:'BAS Q4 (Apr–Jun) due 28 Jul — lodged?',body:'Quarterly BAS for the period was due 28 July. Confirm lodgement status.',channel:'digest',status:'unread',sent_at:'2026-08-11T07:00:00+10:00',sev:'serious'},
+    {notification_id:'n_2',subject:'Payday super — 2 pay runs unpaid this week',body:'From 1 Jul 2026 super is due each pay run within 7 days. 2 runs are outstanding.',channel:'digest',status:'unread',sent_at:'2026-08-11T07:00:00+10:00',sev:'critical'},
+    {notification_id:'n_3',subject:'Unusual expense: Snap-on $1,180 (>2σ for supplier)',body:'A payment to Snap-on is well above the usual range for this supplier.',channel:'digest',status:'read',sent_at:'2026-08-10T07:00:00+10:00',sev:'warning'}
+  ]
+};
+
+const MOCK_CLOSE = {
+  success:true,state:'ok',queue:'month_end_close',mode:'atm_northlakes',period:'2026-07',closed:false,
+  items:[
+    {key:'bills_entered',label:'Supplier bills entered',type:'auto',done:true,detail:'All Northlakes DRAFT bills processed through the pipeline'},
+    {key:'bank_reconciled',label:'Bank reconciled',type:'auto',done:true,detail:'0 unreconciled at 31 Jul'},
+    {key:'commentary',label:'Monthly commentary generated',type:'auto',done:true,detail:'[REPORT] posted 1 Aug 07:30'},
+    {key:'payroll',label:'Payroll finalised',type:'manual',done:false,detail:'Confirm final pay run + super'},
+    {key:'bas',label:'BAS prepared',type:'manual',done:false,detail:'Q4 BAS lodgement'},
+    {key:'inventory',label:'Inventory stocktake',type:'manual',done:false,detail:'Reconcile tracked stock counts'}
+  ]
+};
+
+/* ---------- gateway call: demo routes to mocks, live does fetch ---------- */
+async function callGateway(action, body={}){
+  const payload={action, mode:STATE.mode, session_token:STATE.sessionToken, ...body};
+  if(STATE.live){
+    const res = await fetch(STATE.gatewayUrl,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify(payload)});
+    if(res.status===401) return {success:false,state:'authentication_error',error_code:'private_session_required',message:'A valid private Chloe session and business mode are required.'};
+    return res.json();
+  }
+  // DEMO
+  if(STATE.mode==='atm_beerwah'){
+    return {success:false,state:'invalid_input',error_code:'tenant_offline',message:'atm_beerwah is parked (tenant_offline). Switch to atm_northlakes.',blockers:['tenant_offline'],next_actions:[]};
+  }
+  await new Promise(r=>setTimeout(r, action==='process_supplier_bill'?2600:520));
+  if(action==='process_supplier_bill'){ STATE.bill=deepClone(MOCK_BILL); STATE.answered={supplier:false,inventory:false}; return STATE.bill; }
+  if(action==='list_review_queue') return deepClone(MOCK_QUEUE);
+  if(action==='list_notifications') return deepClone(MOCK_NOTES);
+  if(action==='list_month_end_close') return deepClone(MOCK_CLOSE);
+  if(action==='close_month_end') return {success:true,state:'closed',period:(body.period||MOCK_CLOSE.period),closed:true,posts_to_xero:false,message:'July close recorded and locked. Nothing was posted — this marks the period closed.'};
+  if(action==='confirm_bank_reconciliation') return {success:true,state:'approved',action_id:body.action_id,status:'approved',posts_to_xero:false,message:'Match approved and logged. Finalise the reconciliation in Xero.',match:body._match||{}};
+  if(['match_supplier_bill','commit_supplier_bill'].includes(action)) return mockAdvance(action,body);
+  return {success:false,state:'invalid_input',error_code:'unknown_action',message:'Unknown action',blockers:[],next_actions:[]};
+}
+
+/* ============================================================ RENDER ============================================================ */
+const el = id=>document.getElementById(id);
+function setView(v){
+  STATE.view=v;
+  document.querySelectorAll('.navitem').forEach(n=>n.classList.toggle('active',n.dataset.view===v));
+  el('crumb').textContent={review:'Review',queue:'Review queue',alerts:'Alerts',reports:'Reports',close:'Month-end close',settings:'Settings'}[v];
+  ({review:renderReview,queue:renderQueue,alerts:renderAlerts,reports:renderReports,close:renderClose,settings:renderSettings}[v])();
+}
+
+/* ---------------- REVIEW ---------------- */
+function renderReview(){
+  const c=el('content');
+  const b=STATE.bill;
+  if(STATE.mode==='atm_beerwah'){
+    c.innerHTML=`<div class="banner info" style="max-width:640px"><span>ℹ️</span><div><b>atm_beerwah is parked (tenant_offline).</b> This is an informational state, not a failure — the entity isn't live yet. Switch to <b>atm_northlakes</b> in the top bar to process bills.</div></div>`;
+    chloeReviewReact(); return;
+  }
+  if(!b){
+    c.innerHTML=`
+      <div class="drop" id="drop">
+        <div class="chloe-av" style="margin:0 auto 12px;width:44px;height:44px;font-size:20px">C</div>
+        <h3 style="margin:6px 0 4px">Hi, I'm Chloe. Drop a supplier bill and I'll take it from here.</h3>
+        <div class="muted">I'll extract it, match the supplier, inventory & related sales, then ask you one question at a time — nothing hits Xero without your OK.</div>
+        <div class="samplebar">
+          <button class="btn primary" onclick="startProcess()">Process sample bill (Burson)</button>
+        </div>
+        <div class="hintbox">In demo mode this loads a realistic Burson Auto Parts bill. In Live mode it POSTs <code>process_supplier_bill</code> to your gateway.</div>
+      </div>`;
+    el('drop').onclick=e=>{ if(e.target.tagName!=='BUTTON') startProcess(); };
+    chloeReviewReact(); return;
+  }
+  if(b._processing){ c.innerHTML=procHTML(); chloeReviewReact(); return; }
+  c.innerHTML=`<div class="review-grid">
+    <div class="pane card">${docPane(b)}</div>
+    <div class="pane card">${reviewPane(b)}</div>
+  </div>
+  <div class="kbdbar">
+    <span><kbd>J</kbd><kbd>K</kbd> move</span>
+    <span><kbd>1</kbd>–<kbd>9</kbd> pick</span>
+    <span><kbd>A</kbd> / <kbd>↵</kbd> approve</span>
+    <span><kbd>N</kbd> next bill</span>
+    <span style="margin-left:auto;color:var(--accent)">⌨ keyboard-driven review</span>
+  </div>`;
+  bindReview();
+}
+
+function procHTML(){
+  return `<div class="proc">
+    <div class="spin"></div>
+    <div><b>On it — reading your bill</b> <span class="thinking"><i></i><i></i><i></i></span><div class="muted" style="font-size:12.5px">Supplier · inventory · sales matching (~10–20s live)</div></div>
+    <div class="steps">
+      <div class="s done"><span class="tick">✓</span> Uploaded & OCR extracted</div>
+      <div class="s done"><span class="tick">✓</span> Tax invoice validated (ABN, GST)</div>
+      <div class="s active"><span class="tick"></span> Matching supplier & inventory</div>
+      <div class="s"><span class="tick"></span> Linking related sales</div>
+    </div></div>`;
+}
+
+function docPane(b){
+  const s=b.summary;
+  const li=b.line_items.map((l,i)=>`<tr>
+    <td><span class="fld" data-doc="sku${i}">${l.supplier_sku}</span></td>
+    <td><span class="fld" data-doc="desc${i}">${l.description}</span></td>
+    <td class="r">${l.quantity}</td>
+    <td class="r"><span class="fld" data-doc="amt${i}">${money(l.line_total)}</span></td></tr>`).join('');
+  return `<div class="pane-head"><span class="t">Source document</span>
+      <span class="pill neutral">PDF · pg 1/1</span>
+      <span class="grow" style="flex:1"></span>
+      <span class="pill good"><span class="g">✓</span> Valid tax invoice</span></div>
+    <div class="pane-body">
+      <div class="doc">
+        <div class="stamp">TAX INVOICE</div>
+        <h3><span class="fld" data-doc="supplier">Burson Auto Parts Pty Ltd</span></h3>
+        <div class="docmeta">ABN <span class="fld" data-doc="abn">${s.abn}</span> · Trade Account · Northlakes QLD</div>
+        <div class="docmeta" style="margin-top:8px">
+          Invoice <b><span class="fld" data-doc="invoice_number">${s.invoice_number}</span></b> ·
+          Issued <span class="fld" data-doc="invoice_date">${s.invoice_date}</span> ·
+          Due <span class="fld" data-doc="due_date">${s.due_date}</span>
+        </div>
+        <table><thead><tr><th>SKU</th><th>Description</th><th class="r">Qty</th><th class="r">Amount</th></tr></thead>
+          <tbody>${li}</tbody></table>
+        <table style="margin-top:10px"><tbody>
+          <tr class="totrow"><td class="r" style="width:80%">Subtotal</td><td class="r"><span class="fld" data-doc="subtotal">${money(s.subtotal)}</span></td></tr>
+          <tr class="totrow"><td class="r">GST 10%</td><td class="r"><span class="fld" data-doc="tax">${money(s.tax)}</span></td></tr>
+          <tr class="totrow grand"><td class="r">Total (incl GST)</td><td class="r"><span class="fld" data-doc="total">${money(s.total)}</span></td></tr>
+        </tbody></table>
+      </div>
+      <div class="hintbox" style="margin-top:12px">Click any field on the right to highlight where it came from on the document. <b>Live source-grounding needs per-field bounding boxes from the extractor</b> (backend enhancement A).</div>
+    </div>`;
+}
+
+function reviewPane(b){
+  const s=b.summary;
+  let head=`<div class="pane-head"><span class="t">Review</span>`;
+  if(b.state==='review_required') head+=`<span class="pill warn"><span class="g">▲</span> Needs review</span>`;
+  if(b.state==='ready_for_confirmation') head+=`<span class="pill accent"><span class="g">◆</span> Ready to confirm</span>`;
+  if(b.state==='completed') head+=`<span class="pill good"><span class="g">✓</span> Draft created</span>`;
+  head+=`<span class="grow" style="flex:1"></span><button class="btn ghost" onclick="resetBill()" style="padding:5px 10px;font-size:12px">✕ Close</button></div>`;
+
+  if(b.state==='completed') return head+`<div class="pane-body">${completedHTML(b)}</div>`;
+
+  let body=`<div class="pane-body">`;
+  // question card (one at a time)
+  if(b.targeted_question) body+=questionHTML(b);
+  else if(b.state==='ready_for_confirmation') body+=confirmHTML(b);
+
+  // duplicate warning
+  if(b.duplicate_candidates && b.duplicate_candidates.length){
+    const d=b.duplicate_candidates[0];
+    body+=`<div class="block warnband"><div class="h"><span class="pill warn"><span class="g">▲</span> Possible duplicate</span></div>
+      <div class="b">Similar to bill <b>${d.bill_number}</b> (${money(d.total)}). ${confPill(d.confidence)}
+      <div class="evi">${d.evidence.map(e=>'• '+e).join('<br>')}</div>
+      <div class="row" style="margin-top:10px"><button class="btn" onclick="alert('Would open side-by-side compare')">Compare</button><button class="btn ghost" onclick="this.closest('.block').style.opacity=.5">Not a duplicate</button></div></div></div>`;
+  }
+  // summary block
+  body+=`<div class="block"><div class="h">Bill summary</div><div class="b">
+    ${kv('Supplier', supplierLine(b))}
+    ${kv('Invoice #', s.invoice_number,'invoice_number')}
+    ${kv('Issued', s.invoice_date,'invoice_date')}
+    ${kv('Due', s.due_date,'due_date')}
+    ${kv('Subtotal', money(s.subtotal),'subtotal')}
+    ${kv('GST', money(s.tax)+' <span class="muted" style="font-weight:400">→ 1B on BAS</span>','tax')}
+    ${kv('Total', '<b>'+money(s.total)+'</b>','total')}
+  </div></div>`;
+
+  // line items + inventory + sale links
+  body+=`<div class="block"><div class="h">Line items & inventory <span class="grow" style="flex:1"></span><span class="muted" style="font-weight:400;font-size:11.5px">${s.total_line_count} lines</span></div><div class="b">`;
+  b.line_items.forEach((l,i)=>{
+    const dec=b.inventory_decisions.find(d=>d.line_index===i);
+    let tag='';
+    if(dec){
+      if(dec.selected_match) tag=`<span class="pill good"><span class="g">✓</span> ${dec.selected_match.code}</span>`;
+      else tag=`<span class="pill critical"><span class="g">!</span> Needs item</span>`;
+    } else tag=`<span class="pill neutral">${l.tax_type.includes('Free')?'GST Free':'Expense'}</span>`;
+    body+=`<div class="line"><span class="sku" data-fld="sku${i}">${l.supplier_sku}</span>
+      <span class="desc" data-fld="desc${i}">${l.description}</span>
+      <span class="r muted">×${l.quantity}</span>
+      <span class="r tnum" data-fld="amt${i}">${money(l.line_total)}</span>`;
+    // product_sale_link
+    const link=(b.product_sale_links||{})[String(i)];
+    if(link&&link.length){const s0=link[0];body+=`<div class="linkline">↳ sold on <b>${s0.invoice_number}</b> (${s0.contact_name}) · matched “${s0.matched_description}” ${confPill(s0.confidence)}</div>`;}
+    if(tag) body+=`<div style="grid-column:2/-1;margin-top:4px">${tag}</div>`;
+    body+=`</div>`;
+  });
+  body+=`</div></div>`;
+  body+=`</div>`;
+  return head+body;
+}
+
+function supplierLine(b){
+  const m=b.summary.supplier_match;
+  const c=confPill(m.confidence);
+  return `${m.name} ${c}`;
+}
+function kv(k,v,fld){return `<div class="kv" ${fld?`data-kv="${fld}"`:''}><span class="k">${k}</span><span class="v">${v}</span><span></span></div>`;}
+
+function questionHTML(b){
+  const q=b.targeted_question;
+  if(q.type==='supplier'){
+    const cands=b.supplier_candidates.map(c=>`
+      <div class="cand" onclick="answerSupplier('${c.contact_id}',this)">
+        <div><div class="cn">${c.name}</div><div class="cm">ABN ${c.abn} · ${c.email}</div></div>
+        <span class="grow" style="flex:1"></span>${confPill(c.confidence)}
+        <button class="btn primary" style="padding:6px 12px">Select</button>
+      </div>
+      <div class="evi" style="margin:-4px 0 10px">Why: ${c.evidence.join(' · ')}</div>`).join('');
+    return `<div class="qcard"><div class="qlabel">Question 1 of 2 · Supplier</div>
+      ${chloeSay(`I'm <b>78% sure</b> this is Burson — the name matches but I couldn't confirm it by ABN on my own. Which contact should I use?`)}
+      ${cands}
+      <button class="btn ghost" onclick="alert('Would open new-contact form')" style="margin-top:4px">+ Create new supplier contact</button></div>`;
+  }
+  if(q.type==='inventory'){
+    const dec=b.inventory_decisions[1];
+    const cands=dec.candidates.map(c=>`
+      <div class="cand" onclick="answerInventory('${c.item_id}',this)">
+        <div><div class="cn">${c.name}</div><div class="cm">${c.code} · tracked</div></div>
+        <span class="grow" style="flex:1"></span>${confPill(c.confidence)}
+        <button class="btn primary" style="padding:6px 12px">Use this</button>
+      </div>
+      <div class="evi" style="margin:-4px 0 10px">Why: ${c.evidence.join(' · ')}</div>`).join('');
+    return `<div class="qcard"><div class="qlabel">Question 2 of 2 · Inventory</div>
+      ${chloeSay(`Two tracked items look close for the <b>Penrite 15W-40 20L</b>. Pick the right one and the job margin stays accurate — I'll remember it for next time.`)}
+      ${cands}
+      <button class="btn ghost" onclick="alert('Would open create-tracked-item form (asset 630 / COGS 310)')">+ Create new tracked item</button></div>`;
+  }
+  return '';
+}
+
+function confirmHTML(b){
+  return `<div class="qcard" style="border-color:rgba(12,163,12,.4);background:linear-gradient(180deg,var(--good-soft),transparent)">
+    <div class="qlabel" style="color:#7ee07e">Ready to confirm</div>
+    ${chloeSay(`All matched and coded — GST checks out at 1/11, and I've linked the brake pads to a sale. I've prepared a <b>DRAFT</b> for ${money(b.summary.total)}. Nothing hits Xero until you say go.`)}
+    <button class="btn good" style="font-size:14px;padding:11px 18px" onclick="commitBill()">✓ Approve & create Xero draft bill</button>
+  </div>`;
+}
+
+function completedHTML(b){
+  const x=b.bill;
+  return `${chloeSay(`Done — draft <b>${x.bill_number}</b> is in Xero for ${money(x.total)}. I've filed the PDF against it. I'll remember Burson and that Penrite SKU, so next time I won't need to ask.`)}
+    <div class="banner ok"><span>✓</span><div><b>Draft bill created in Xero.</b> Nothing was posted beyond a draft — approve inside Xero when ready.</div></div>
+    <div class="block"><div class="h">Xero draft bill</div><div class="b">
+      ${kv('Bill ID', x.bill_id)}${kv('Bill number', x.bill_number)}
+      ${kv('Status', '<span class="pill accent">DRAFT</span>')}${kv('Total', '<b>'+money(x.total)+'</b>')}
+    </div></div>
+    <div class="row"><button class="btn primary" onclick="alert('Would deep-link to the bill in Xero')">Open in Xero ↗</button>
+    <button class="btn" onclick="resetBill()">Next bill</button></div>
+    <div class="hintbox" style="margin-top:12px">Chloe will remember this Burson supplier + Penrite SKU mapping — next time it won't ask.</div>`;
+}
+
+/* ---------- review interactions ---------- */
+function bindReview(){
+  // source grounding: hover/click field -> highlight doc
+  document.querySelectorAll('[data-fld]').forEach(elm=>{
+    elm.style.cursor='pointer';
+    elm.onmouseenter=()=>highlightDoc(elm.dataset.fld,true);
+    elm.onmouseleave=()=>highlightDoc(elm.dataset.fld,false);
+  });
+  document.querySelectorAll('[data-kv]').forEach(elm=>{
+    elm.onmouseenter=()=>highlightDoc(elm.dataset.kv,true);
+    elm.onmouseleave=()=>highlightDoc(elm.dataset.kv,false);
+  });
+  kbInit();
+  chloeReviewReact();
+}
+
+/* ---------- keyboard-driven review ---------- */
+let kFocus=0;
+function kbCands(){return Array.from(document.querySelectorAll('#content .cand'));}
+function kbInit(){kFocus=0; kbPaint();}
+function kbPaint(){const c=kbCands(); c.forEach((el,i)=>el.classList.toggle('kfocus',i===kFocus)); if(c[kFocus]) c[kFocus].scrollIntoView({block:'nearest'});}
+function kbMove(d){const c=kbCands(); if(!c.length)return; kFocus=(kFocus+d+c.length)%c.length; kbPaint();}
+function kbActivate(){const c=kbCands(); if(c[kFocus]){c[kFocus].click(); return true;} return false;}
+function handleReviewKeys(e){
+  if(STATE.view!=='review'||!STATE.bill||STATE.bill._processing) return;
+  if(/input|textarea|select/i.test(e.target.tagName)) return;
+  const b=STATE.bill;
+  const k=e.key.toLowerCase();
+  if(k==='j'||e.key==='ArrowDown'){e.preventDefault();kbMove(1);}
+  else if(k==='k'||e.key==='ArrowUp'){e.preventDefault();kbMove(-1);}
+  else if(/^[1-9]$/.test(e.key)){const c=kbCands(); const i=+e.key-1; if(c[i]){kFocus=i;kbPaint();c[i].click();}}
+  else if(k==='a'||e.key==='Enter'){
+    if(b.state==='ready_for_confirmation'){e.preventDefault();commitBill();}
+    else if(b.targeted_question){e.preventDefault();kbActivate();}
+  }
+  else if(k==='n'&&b.state==='completed'){resetBill();}
+}
+function highlightDoc(key,on){const t=document.querySelector(`[data-doc="${key}"]`); if(t){t.classList.toggle('hot',on); if(on)t.scrollIntoView({block:'center',behavior:'smooth'});}}
+
+async function startProcess(){
+  if(!STATE.bill) STATE.bill={_processing:true};
+  else STATE.bill._processing=true;
+  renderReview();
+  const r=await callGateway('process_supplier_bill',{request_id:'req_'+Date.now()});
+  if(r.success===false){ STATE.bill=null; showError(r); return; }
+  STATE.bill=r; renderReview();
+}
+async function answerSupplier(cid,node){
+  node.classList.add('selected');
+  const r=await callGateway('match_supplier_bill',{action_id:STATE.bill.request_id,selected_supplier_contact_id:cid});
+  if(r.success===false) return showError(r);
+  STATE.bill=r; renderReview();
+}
+async function answerInventory(itemId,node){
+  node.classList.add('selected');
+  const r=await callGateway('match_supplier_bill',{action_id:STATE.bill.request_id,inventory_selections:[{line_index:1,item_id:itemId}]});
+  if(r.success===false) return showError(r);
+  STATE.bill=r; renderReview();
+}
+async function commitBill(){
+  const r=await callGateway('commit_supplier_bill',{action_id:STATE.bill.request_id,confirmed:true,confirmation_token:'ok_'+Date.now()});
+  if(r.success===false) return showError(r);
+  STATE.bill=r; renderReview();
+}
+function resetBill(){STATE.bill=null; renderReview();}
+
+/* ---------------- QUEUE ---------------- */
+let queueData=null, queueFilter='all';
+async function renderQueue(){
+  const c=el('content');
+  c.innerHTML=`<h2 class="page">Review queue</h2><div class="sub">Proposals from <code>bk_proposed_actions</code>, scoped to <b>${STATE.mode}</b>. Reads are display-only — acting still goes through the write actions.</div><div id="qbody" class="muted">Loading…</div>`;
+  const r=await callGateway('list_review_queue',{});
+  if(r.success===false){el('qbody').innerHTML=errHTML(r);return;}
+  queueData=r; paintQueue();
+}
+const queueSel=new Set();
+const APPROVABLE=['awaiting_approval','ready_for_confirmation'];
+function approvable(a){return APPROVABLE.includes(a.status);}
+function paintQueue(){
+  const rows=queueData.actions.filter(a=>queueFilter==='all'||a.status===queueFilter||a.action_type===queueFilter);
+  const stat=`<div class="stat">
+    <div class="t"><div class="n tnum">${queueData.actions.filter(a=>a.action_type==='supplier_bill').length}</div><div class="l">Supplier bills</div></div>
+    <div class="t"><div class="n tnum">${queueData.actions.filter(a=>a.action_type==='bank_reconciliation').length}</div><div class="l">Bank-rec assists</div></div>
+    <div class="t"><div class="n tnum" style="color:var(--serious)">${queueData.actions.filter(a=>a.status==='exception').length}</div><div class="l">Exceptions</div></div>
+  </div>`;
+  const filters=`<div class="filters">
+    ${['all','supplier_bill','bank_reconciliation','exception','awaiting_approval','ready_for_confirmation'].map(f=>`<button class="fbtn ${queueFilter===f?'on':''}" onclick="setQF('${f}')">${f.replace(/_/g,' ')}</button>`).join('')}
+  </div>`;
+  // bulk bar
+  let bulk='';
+  if(queueSel.size){
+    bulk=`<div class="bulkbar"><span class="chk on">✓</span><b>${queueSel.size} selected</b>
+      <span class="muted">only approvable rows can be selected</span><span class="grow"></span>
+      <button class="btn ghost" onclick="clearSel()">Clear</button>
+      <button class="btn good" onclick="bulkApprove()">✓ Approve ${queueSel.size}</button></div>`;
+  }
+  let grouped={};
+  rows.forEach(a=>{(grouped[a.action_type]=grouped[a.action_type]||[]).push(a);});
+  const selectableVisible=rows.filter(approvable);
+  const allSel=selectableVisible.length&&selectableVisible.every(a=>queueSel.has(a.action_id));
+  let body=`<div class="card" style="overflow:hidden"><table class="tbl responsive"><thead><tr>
+      <th class="selcol"><span class="chk ${allSel?'on':''}" onclick="toggleAll()">${allSel?'✓':''}</span></th>
+      <th>Status</th><th>Supplier / match</th><th>Reason</th><th class="r">Amount</th><th class="r">Age</th></tr></thead><tbody>`;
+  Object.keys(grouped).forEach(gt=>{
+    body+=`<tr class="grouphdr"><td colspan="6">${gt==='supplier_bill'?'▤ Supplier bills':'⇄ Bank reconciliation'}</td></tr>`;
+    grouped[gt].forEach(a=>{
+      const amt=a.payload.total||a.payload.txn_total||0;
+      const idx=queueData.actions.indexOf(a);
+      const sel=queueSel.has(a.action_id);
+      const canSel=approvable(a);
+      body+=`<tr class="${sel?'selected':''}" onclick="openAction('${a.action_type}',${idx})">
+        <td class="selcol" data-lbl="" onclick="event.stopPropagation();${canSel?`toggleSel('${a.action_id}')`:''}">
+          ${canSel?`<span class="chk ${sel?'on':''}">${sel?'✓':''}</span>`:'<span class="muted" title="Not bulk-approvable">–</span>'}</td>
+        <td data-lbl="Status">${statusPill(a.status)}</td>
+        <td data-lbl="Supplier"><b>${a.payload.supplier||a.payload.match_contact||'—'}</b><div class="muted" style="font-size:11.5px">${a.payload.invoice_number||a.payload.match_number||''}</div>${a.action_type==='supplier_bill'?sourcePill(a.payload.source_type):''}</td>
+        <td class="sec2" data-lbl="Reason">${a.reason}</td>
+        <td class="r tnum" data-lbl="Amount">${money(amt)}</td>
+        <td class="r" data-lbl="Age"><span class="age" style="color:${a.age_h>24?'var(--serious)':'var(--muted)'}">${a.age_h}h</span></td></tr>`;
+    });
+  });
+  body+=`</tbody></table></div>`;
+  el('qbody').innerHTML=stat+filters+bulk+body;
+}
+function setQF(f){queueFilter=f;paintQueue();}
+function toggleSel(id){queueSel.has(id)?queueSel.delete(id):queueSel.add(id);paintQueue();}
+function clearSel(){queueSel.clear();paintQueue();}
+function toggleAll(){
+  const vis=queueData.actions.filter(a=>(queueFilter==='all'||a.status===queueFilter||a.action_type===queueFilter)&&approvable(a));
+  const allSel=vis.length&&vis.every(a=>queueSel.has(a.action_id));
+  vis.forEach(a=>allSel?queueSel.delete(a.action_id):queueSel.add(a.action_id));
+  paintQueue();
+}
+async function bulkApprove(){
+  const ids=[...queueSel];
+  const undo=ids.map(id=>{const a=queueData.actions.find(x=>x.action_id===id);return {a,prev:a.status};});
+  // fire the right write action per row; bank-rec = confirm_bank_reconciliation (approve-only)
+  for(const id of ids){
+    const a=queueData.actions.find(x=>x.action_id===id);
+    if(a.action_type==='bank_reconciliation'){await callGateway('confirm_bank_reconciliation',{action_id:id,confirmed:true,confirmation_token:'bulk_'+Date.now(),_match:a.payload}); a.status='approved';}
+    else {a.status='committed';}
+  }
+  queueSel.clear(); paintQueue();
+  undoToast(`${ids.length} approved`, ()=>{undo.forEach(u=>u.a.status=u.prev);paintQueue();});
+}
+function undoToast(msg,onUndo){
+  const t=document.createElement('div');
+  t.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--surface-3);border:1px solid var(--border);padding:10px 16px;border-radius:10px;z-index:60;box-shadow:var(--shadow);display:flex;gap:14px;align-items:center';
+  t.innerHTML=`<span>✓ ${msg}</span>`;
+  const u=document.createElement('button');u.textContent='Undo';u.className='btn ghost';u.style.padding='4px 10px';
+  u.onclick=()=>{onUndo();t.remove();}; t.appendChild(u);
+  document.body.appendChild(t); setTimeout(()=>t.remove(),5000);
+}
+function statusPill(s){
+  const map={ready_for_confirmation:['accent','◆'],awaiting_approval:['warn','▲'],exception:['critical','!'],approved:['good','✓'],committed:['good','✓']};
+  const m=map[s]||['neutral','•'];
+  return `<span class="pill ${m[0]}"><span class="g">${m[1]}</span>${s.replace(/_/g,' ')}</span>`;
+}
+function sourcePill(src){
+  const m={xero_draft:['accent','⇩ Xero draft'],upload:['neutral','⬆ Upload'],outlook_attachment:['neutral','✉ Email']};
+  const x=m[src]; if(!x) return '';
+  return `<div style="margin-top:4px"><span class="pill ${x[0]}" style="font-size:10.5px">${x[1]}</span></div>`;
+}
+function openAction(type,i){
+  const a=queueData.actions[i];
+  openDrawer(type==='bank_reconciliation'?'Bank-rec proposal':'Supplier bill proposal', actionDetail(a), actionFoot(a,type,i));
+}
+function actionDetail(a){
+  const p=a.payload;
+  let h=`<div style="margin-bottom:14px">${statusPill(a.status)} <span class="muted" style="margin-left:8px">${a.action_id}</span></div>`;
+  h+=`<div class="block"><div class="h">Reason</div><div class="b">${a.reason}<div class="muted" style="margin-top:6px">Expected: ${a.expected_result}</div></div></div>`;
+  if(a.action_type==='bank_reconciliation'){
+    h+=`<div class="block"><div class="h">Match ${confPill(p.confidence)}</div><div class="b">
+      ${kv('Bank txn', p.txn_type+' '+money(p.txn_total)+' · '+p.txn_date)}
+      ${kv('Matches', p.match_type+' '+p.match_number)}
+      ${kv('Contact', p.match_contact)}
+      <div class="evi" style="margin-top:8px">${p.evidence.map(e=>'• '+e).join('<br>')}</div></div></div>
+      <div class="banner info"><span>ℹ️</span><div><b>Approve-only.</b> Confirming logs an approval and flips the proposal to <code>approved</code> — it does <b>not</b> post to Xero (<code>posts_to_xero:false</code>). Finalise the reconcile in Xero.</div></div>`;
+  } else {
+    h+=`<div class="block"><div class="h">Bill</div><div class="b">${kv('Supplier',p.supplier)}${kv('Invoice #',p.invoice_number)}${kv('Total',money(p.total))}</div></div>`;
+  }
+  return h;
+}
+function actionFoot(a,type,i){
+  if(type==='bank_reconciliation' && a.status!=='approved'){
+    return `<button class="btn ghost" onclick="closeDrawer()">Close</button><button class="btn good" onclick="confirmBankRec(${i})">✓ Approve match</button>`;
+  }
+  if(type==='supplier_bill'){
+    return `<button class="btn ghost" onclick="closeDrawer()">Close</button><button class="btn primary" onclick="closeDrawer();setView('review')">Open in review →</button>`;
+  }
+  return `<button class="btn ghost" onclick="closeDrawer()">Close</button>`;
+}
+async function confirmBankRec(i){
+  const a=queueData.actions[i];
+  const r=await callGateway('confirm_bank_reconciliation',{action_id:a.action_id,confirmed:true,confirmation_token:'ok_'+Date.now(),_match:a.payload});
+  if(r.success===false) return showError(r);
+  a.status='approved';
+  el('drawerBody').innerHTML=`<div class="banner ok"><span>✓</span><div><b>${r.message}</b></div></div>`+actionDetail(a);
+  el('drawerFoot').innerHTML=`<span class="pill accent">posts_to_xero: false</span><button class="btn" onclick="closeDrawer();paintQueue()">Done</button>`;
+}
+
+/* ---------------- ALERTS ---------------- */
+let notesData=null, notesUnread=false;
+async function renderAlerts(){
+  const c=el('content');
+  c.innerHTML=`<h2 class="page">Alerts</h2><div class="sub">Daily notifications from <code>bk_notifications</code> — BAS/super deadlines, cash movement, aged payables, unusual expense.</div>
+    <div class="filters"><button class="fbtn ${!notesUnread?'on':''}" onclick="notesUnread=false;paintNotes()">All</button><button class="fbtn ${notesUnread?'on':''}" onclick="notesUnread=true;paintNotes()">Unread</button></div>
+    <div id="nbody" class="muted">Loading…</div>`;
+  const r=await callGateway('list_notifications',{});
+  if(r.success===false){el('nbody').innerHTML=errHTML(r);return;}
+  notesData=r; paintNotes();
+}
+function paintNotes(){
+  const sevmap={critical:['critical','!'],serious:['serious','▲'],warning:['warn','▲'],info:['accent','ℹ']};
+  const rows=notesData.notifications.filter(n=>!notesUnread||n.status==='unread');
+  el('nbody').innerHTML=`<div class="card" style="overflow:hidden">`+rows.map(n=>{
+    const m=sevmap[n.sev]||sevmap.info;
+    return `<div style="display:flex;gap:14px;padding:14px 16px;border-bottom:1px solid var(--border-2);${n.status==='unread'?'background:var(--surface-2)':''}">
+      <div style="padding-top:2px"><span class="pill ${m[0]}"><span class="g">${m[1]}</span>${n.sev}</span></div>
+      <div style="flex:1"><div style="font-weight:600">${n.subject} ${n.status==='unread'?'<span style="color:var(--accent);font-size:11px">● new</span>':''}</div>
+        <div class="sec2" style="font-size:12.5px;margin-top:2px">${n.body}</div>
+        <div class="muted" style="font-size:11px;margin-top:4px">${n.sent_at.slice(0,16).replace('T',' ')}</div></div>
+      ${n.status==='unread'?`<button class="btn ghost" style="padding:5px 10px;font-size:12px;align-self:center" onclick="markRead('${n.notification_id}')">Mark read</button>`:''}
+    </div>`;
+  }).join('')+`</div>`;
+}
+function markRead(id){const n=notesData.notifications.find(x=>x.notification_id===id);if(n)n.status='read';paintNotes();}
+
+/* ---------------- REPORTS ---------------- */
+async function renderReports(){
+  const c=el('content');
+  c.innerHTML=`<h2 class="page">Reports</h2><div class="sub">Monthly commentary — P&L (month vs prior) + balance sheet, generated on the 1st and posted as <code>[REPORT]</code> notifications. Grounded on live Xero data.</div><div id="rbody" class="muted">Loading…</div>`;
+  const r=await callGateway('list_notifications',{});
+  if(r.success===false){el('rbody').innerHTML=errHTML(r);return;}
+  const reports=r.notifications.filter(n=>/\[REPORT\]/.test(n.subject)||n.kind==='report');
+  el('rbody').innerHTML = reports.length ? reports.map(n=>`<div class="card" style="padding:16px 18px;margin-bottom:12px">
+     <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span class="pill accent">▦ REPORT</span><b>${n.subject.replace('[REPORT]','').trim()}</b><span class="grow" style="flex:1"></span><span class="muted" style="font-size:11.5px">${n.sent_at.slice(0,10)}</span></div>
+     <div class="sec2" style="font-size:13px;line-height:1.6">${n.body}</div></div>`).join('')
+   : '<div class="muted">No reports yet — the first lands on the 1st.</div>';
+}
+
+/* ---------------- MONTH-END CLOSE ---------------- */
+let closeData=null;
+async function renderClose(){
+  const c=el('content');
+  c.innerHTML=`<h2 class="page">Month-end close</h2><div class="sub">From <code>bk_month_end_close</code>. Chloe auto-ticks bills-entered, bank-reconciled and commentary; you tick payroll, BAS and inventory. Closing records the period — it never posts to Xero.</div><div id="mbody" class="muted">Loading…</div>`;
+  const r=await callGateway('list_month_end_close',{});
+  if(r.success===false){el('mbody').innerHTML=errHTML(r);return;}
+  closeData=r; paintClose();
+}
+function paintClose(){
+  const d=closeData;
+  const doneCount=d.items.filter(i=>i.done).length, allDone=d.items.every(i=>i.done);
+  const row=i=>`<div style="display:flex;align-items:center;gap:12px;padding:11px 4px;border-bottom:1px solid var(--border-2)">
+     <span class="chk ${i.done?'on':''}" ${i.type==='manual'&&!d.closed?`onclick="toggleClose('${i.key}')"`:''} style="cursor:${i.type==='manual'&&!d.closed?'pointer':'default'}">${i.done?'✓':''}</span>
+     <div style="flex:1"><div style="font-weight:600">${i.label} ${i.type==='auto'?'<span class="pill neutral" style="font-size:10px">auto</span>':'<span class="pill warn" style="font-size:10px">manual</span>'}</div><div class="muted" style="font-size:11.5px">${i.detail||''}</div></div>
+     ${i.done?'<span class="pill good"><span class="g">✓</span> done</span>':'<span class="pill warn"><span class="g">▲</span> pending</span>'}</div>`;
+  el('mbody').innerHTML=`
+   <div class="stat">
+     <div class="t"><div class="n tnum">${d.period}</div><div class="l">Period</div></div>
+     <div class="t"><div class="n tnum">${doneCount}/${d.items.length}</div><div class="l">Steps complete</div></div>
+     <div class="t"><div class="n">${d.closed?'<span style="color:var(--good)">Closed</span>':'<span style="color:var(--warn)">Open</span>'}</div><div class="l">Status</div></div>
+   </div>
+   <div class="card" style="padding:6px 16px 12px;margin-bottom:14px">${d.items.map(row).join('')}</div>
+   ${d.closed
+     ? `<div class="banner ok"><span>✓</span><div><b>${d.period} is closed.</b> Recorded only — nothing was posted to Xero.</div></div>`
+     : `<div class="row"><button class="btn good" ${allDone?'':'disabled'} onclick="doClose()">${allDone?'✓ Close '+d.period:'Finish manual steps to close'}</button><span class="muted">Records the period; does not post to Xero.</span></div>`}`;
+}
+function toggleClose(key){const i=closeData.items.find(x=>x.key===key);if(i&&i.type==='manual'&&!closeData.closed){i.done=!i.done;paintClose();}}
+async function doClose(){
+  const r=await callGateway('close_month_end',{period:closeData.period,confirmed:true,confirmation_token:'ok_'+Date.now()});
+  if(r.success===false)return showError(r);
+  closeData.closed=true; paintClose(); toast(r.message||'Period closed');
+}
+
+/* ---------------- SETTINGS ---------------- */
+function renderSettings(){
+  el('content').innerHTML=`<h2 class="page">Settings</h2><div class="sub">Point the cockpit at your gateway. Demo mode uses built-in sample data; Live mode POSTs to the webhook.</div>
+    <div class="card" style="max-width:620px;padding:18px">
+      <label class="field">Gateway webhook URL
+        <input id="setUrl" value="${STATE.gatewayUrl}">
+      </label>
+      <label class="field">Session token <span class="muted">(or rely on the chloe_session cookie)</span>
+        <input id="setTok" placeholder="base64url(email|expiryMs|nonce).sha256(...)" value="${STATE.sessionToken}">
+      </label>
+      <label class="field">Chloe voice endpoint <span class="muted">(OpenAI TTS via n8n; used in Live mode, browser voice as fallback)</span>
+        <input id="setTts" value="${STATE.ttsUrl}">
+      </label>
+      <div class="row" style="margin-top:6px"><button class="btn primary" onclick="saveSettings()">Save</button>
+        <span class="muted">Mode & Demo/Live are in the top bar.</span></div>
+      <div class="banner err" style="margin-top:16px"><span>⚠️</span><div><b>Known bug this fixes:</b> the current portal renders every error as “the private connection did not answer.” This cockpit renders the real envelope — 401 auth vs 200 <code>success:false</code> with <code>error_code</code> — so a Xero 401 never hides again.</div></div>
+    </div>`;
+}
+function saveSettings(){STATE.gatewayUrl=el('setUrl').value.trim();STATE.sessionToken=el('setTok').value.trim();STATE.ttsUrl=el('setTts').value.trim();toast('Settings saved');}
+
+/* ---------------- errors / drawer / toast ---------------- */
+function errHTML(r){
+  if(r.state==='authentication_error') return `<div class="banner err"><span>🔒</span><div><b>Authentication required.</b> ${r.message}<div class="muted" style="margin-top:4px">error_code: <code>${r.error_code}</code> — prompt re-login.</div></div></div>`;
+  return `<div class="banner err"><span>⚠️</span><div><b>${r.message}</b><div class="muted" style="margin-top:4px">error_code: <code>${r.error_code||'—'}</code> · state: <code>${r.state}</code></div>${(r.blockers&&r.blockers.length)?`<div class="evi" style="margin-top:8px">Blockers: ${r.blockers.join(', ')}</div>`:''}</div></div>`;
+}
+function showError(r){ if(STATE.view==='review'){const c=el('content');c.insertAdjacentHTML('afterbegin',errHTML(r));} else toast(r.message); if(window.Chloe){_chloeKey='err:'+(r.error_code||r.message);Chloe.say('Heads up — '+(r.message||'that didn’t go through.'),{motion:'alert',emotion:'concerned'});} }
+function openDrawer(title,body,foot){el('drawerTitle').textContent=title;el('drawerBody').innerHTML=body;el('drawerFoot').innerHTML=foot;el('drawerWrap').classList.add('open');}
+function closeDrawer(){el('drawerWrap').classList.remove('open');}
+el('drawerWrap').addEventListener('click',e=>{if(e.target.id==='drawerWrap')closeDrawer();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDrawer();});
+document.addEventListener('keydown',handleReviewKeys);
+/* mobile nav */
+el('hamb').onclick=()=>el('app').classList.toggle('navopen');
+el('railScrim').onclick=()=>el('app').classList.remove('navopen');
+document.querySelectorAll('.navitem').forEach(n=>n.addEventListener('click',()=>el('app').classList.remove('navopen')));
+function toast(m){const t=document.createElement('div');t.textContent=m;t.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--surface-3);border:1px solid var(--border);padding:10px 18px;border-radius:10px;z-index:60;box-shadow:var(--shadow)';document.body.appendChild(t);setTimeout(()=>t.remove(),1800);}
+
+/* ---------------- wiring ---------------- */
+document.querySelectorAll('.navitem').forEach(n=>n.onclick=()=>setView(n.dataset.view));
+el('modeSel').onchange=e=>{STATE.mode=e.target.value; el('sessChip').innerHTML= STATE.mode==='atm_beerwah'?'<span class="dot" style="background:var(--warn)"></span> parked':'<span class="dot" style="background:var(--good)"></span> session ok'; setView(STATE.view);};
+el('liveToggle').querySelectorAll('button').forEach(btn=>btn.onclick=()=>{
+  STATE.live=btn.dataset.live==='live';
+  el('liveToggle').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===btn));
+  toast(STATE.live?'Live mode — calls your gateway':'Demo mode — sample data');
+});
+/* =====================================================================
+   CHLOE — full-body animated presence with voice.
+   Motions & emotions map 1:1 to the backend character_state contract
+   emitted by chloe-app-v2:
+     animation GESTURE_RIGHT_PANEL -> motion:'gesture'
+     animation ALERT_EXCLAIM       -> motion:'alert'
+     emotion   confident/concerned -> emotion:'confident'/'concerned'
+     voice_state 'speaking'        -> she speaks chat_bubble.text (TTS)
+   ===================================================================== */
+const CHLOE_CSS = `
+#chloeDock{position:fixed;right:16px;bottom:14px;width:176px;z-index:35;display:flex;flex-direction:column;align-items:flex-end;gap:8px;pointer-events:none}
+#chloeDock>*{pointer-events:auto}
+#chloeBubble{background:var(--surface-1);border:1px solid var(--border);border-radius:14px 14px 4px 14px;padding:10px 12px;font-size:12.5px;line-height:1.4;color:var(--ink);box-shadow:var(--shadow);max-width:220px;opacity:0;transform:translateY(6px);transition:.25s}
+#chloeBubble.show{opacity:1;transform:none}
+#chloeBubble b{color:#9cc6f5}
+#chloeFig{width:154px;cursor:pointer;filter:drop-shadow(0 12px 18px rgba(0,0,0,.5))}
+#chloeFig svg{width:100%;height:auto;display:block}
+#chloeCtrls{display:flex;gap:6px;align-self:flex-end}
+.cbtn{background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:4px 9px;font-size:12px;color:var(--ink-2);line-height:1}
+.cbtn:hover{color:#fff;background:var(--surface-3)}
+#chloeMini{position:fixed;right:16px;bottom:16px;z-index:35;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent-2));border:0;color:#fff;font-weight:800;font-size:20px;box-shadow:var(--shadow);display:none;place-items:center}
+#chloeDock.min{display:none}
+#chloeDock.min ~ #chloeMini{display:grid}
+/* animation rigging */
+#c-upper,#c-eyes,#c-head,#c-arm-r,#c-brow-l,#c-brow-r,#c-smile,#c-talk,#c-excl,#c-lean{transform-box:fill-box}
+#c-upper{transform-origin:center;animation:c-breathe 4.6s ease-in-out infinite}
+#c-eyes{transform-origin:center;animation:c-blink 5s infinite}
+#c-head{transform-origin:center bottom}
+#c-lean{transform-origin:bottom center;transition:transform .5s ease}
+#c-arm-r{transform-origin:top center;transition:transform .55s cubic-bezier(.2,.85,.25,1)}
+#c-brow-l,#c-brow-r{transform-origin:center;transition:transform .35s ease}
+#c-smile{transform-origin:center;transition:transform .35s ease,opacity .3s}
+#c-talk{transform-origin:center;transform:scaleY(0)}
+#c-excl{transform-origin:center;transform:scale(0);opacity:0;transition:transform .3s cubic-bezier(.2,1.7,.4,1),opacity .2s}
+@keyframes c-breathe{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-2px) scale(1.012)}}
+@keyframes c-blink{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.08)}}
+@keyframes c-talk{0%,100%{transform:scaleY(.22)}50%{transform:scaleY(1)}}
+@keyframes c-bob{0%,100%{transform:rotate(0)}50%{transform:rotate(1.6deg)}}
+@keyframes c-shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+.chloe-fig.gesture #c-arm-r{transform:rotate(-55deg)}
+.chloe-fig.alert #c-arm-r{transform:rotate(-74deg)}
+.chloe-fig.gesture #c-lean{transform:rotate(-2deg)}
+.chloe-fig.talking #c-talk{animation:c-talk .26s ease-in-out infinite}
+.chloe-fig.talking #c-smile{opacity:.3}
+.chloe-fig.talking #c-head{animation:c-bob .5s ease-in-out infinite}
+.chloe-fig.confident #c-smile{transform:scale(1.07)}
+.chloe-fig.concerned #c-smile{transform:translateY(4px) scaleY(-.65)}
+.chloe-fig.concerned #c-brow-l{transform:translateY(-2px) rotate(11deg)}
+.chloe-fig.concerned #c-brow-r{transform:translateY(-2px) rotate(-11deg)}
+.chloe-fig.concerned #c-head{transform:rotate(-3deg)}
+.chloe-fig.alert #c-brow-l,.chloe-fig.alert #c-brow-r{transform:translateY(-4px)}
+.chloe-fig.alert #c-excl{transform:scale(1);opacity:1}
+.chloe-fig.alert #c-lean{animation:c-shake .45s ease}
+@media(max-width:900px){#chloeDock{width:118px;right:8px;bottom:8px}#chloeFig{width:104px}#chloeBubble{max-width:160px;font-size:11.5px}}
+@media (prefers-reduced-motion:reduce){#c-upper,#c-eyes,#c-head,#c-talk,#c-lean{animation:none!important}}
+`;
+
+const CHLOE_SVG = `<svg viewBox="0 0 240 520" xmlns="http://www.w3.org/2000/svg" aria-label="Chloe">
+<defs>
+  <linearGradient id="lan" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3987e5"/><stop offset="1" stop-color="#7b3ae0"/></linearGradient>
+  <linearGradient id="skin" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f8d7bd"/><stop offset="1" stop-color="#eebf9d"/></linearGradient>
+  <linearGradient id="hair" x1="0" y1="0" x2="0.35" y2="1"><stop offset="0" stop-color="#dcac6f"/><stop offset="1" stop-color="#a9743f"/></linearGradient>
+  <linearGradient id="blazer" x1="0" y1="0" x2="0.25" y2="1"><stop offset="0" stop-color="#2a3450"/><stop offset="1" stop-color="#171d30"/></linearGradient>
+  <linearGradient id="skirt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#212a44"/><stop offset="1" stop-color="#121829"/></linearGradient>
+  <linearGradient id="blouse" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#e7edf5"/></linearGradient>
+  <linearGradient id="lip" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e2988e"/><stop offset="1" stop-color="#b85d54"/></linearGradient>
+  <radialGradient id="iris" cx="50%" cy="45%" r="60%"><stop offset="0" stop-color="#7fb2e2"/><stop offset="1" stop-color="#2f5f97"/></radialGradient>
+  <radialGradient id="blush" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="rgba(232,120,110,.55)"/><stop offset="1" stop-color="rgba(232,120,110,0)"/></radialGradient>
+  <radialGradient id="bg" cx="42%" cy="32%" r="85%"><stop offset="0" stop-color="#2c2540"/><stop offset="1" stop-color="#100e18"/></radialGradient>
+  <clipPath id="frame"><rect x="4" y="4" width="232" height="512" rx="22"/></clipPath>
+  <filter id="soft" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="7"/></filter>
+</defs>
+<g clip-path="url(#frame)">
+  <rect x="4" y="4" width="232" height="512" fill="url(#bg)"/>
+  <g filter="url(#soft)" opacity="0.55">
+    <circle cx="52" cy="120" r="30" fill="#caa15a"/>
+    <circle cx="196" cy="92" r="22" fill="#3987e5"/>
+    <circle cx="206" cy="235" r="34" fill="#7b3ae0"/>
+    <circle cx="40" cy="330" r="24" fill="#caa15a"/>
+    <circle cx="150" cy="58" r="15" fill="#f0c98a"/>
+    <circle cx="60" cy="470" r="30" fill="#3a3350"/>
+  </g>
+</g>
+<ellipse cx="120" cy="504" rx="58" ry="10" fill="rgba(0,0,0,.35)"/>
+<g id="c-legs">
+  <path d="M92,332 C96,320 144,320 148,332 L153,396 C153,402 147,404 140,404 L100,404 C93,404 87,402 87,396 Z" fill="url(#skirt)"/>
+  <path d="M104,400 C101,436 100,474 103,494 Q104,502 111,500 Q116,452 116,402 Z" fill="url(#skin)"/>
+  <path d="M124,402 C124,452 128,474 131,494 Q134,502 140,500 Q141,458 136,400 Z" fill="url(#skin)"/>
+  <path d="M99,496 Q108,494 117,497 L114,505 Q106,508 100,504 Z" fill="#20232c"/><rect x="99" y="504" width="3" height="7" rx="1.5" fill="#20232c"/>
+  <path d="M125,498 Q134,496 141,499 L139,506 Q131,509 126,505 Z" fill="#20232c"/><rect x="137" y="505" width="3" height="7" rx="1.5" fill="#20232c"/>
+</g>
+<g id="c-lean"><g id="c-upper">
+  <path d="M120,44 C84,44 64,74 64,116 C64,152 66,214 78,306 C84,288 96,252 98,212 L142,212 C144,252 156,288 162,306 C174,214 176,152 176,116 C176,74 156,44 120,44 Z" fill="url(#hair)"/>
+  <path d="M150,72 C160,124 158,206 150,276" stroke="#eecb92" stroke-width="5" fill="none" opacity=".5" stroke-linecap="round"/>
+  <path d="M108,140 L108,160 Q120,172 132,160 L132,140 Z" fill="url(#skin)"/>
+  <path d="M120,150 C102,150 88,158 84,178 C80,206 78,252 82,300 C84,320 92,332 104,334 L136,334 C148,332 156,320 158,300 C162,252 160,206 156,178 C152,158 138,150 120,150 Z" fill="url(#blazer)"/>
+  <path d="M110,150 L120,202 L130,150 Z" fill="url(#blouse)"/>
+  <path d="M100,158 L120,204 L112,150 Z" fill="#232b3a"/>
+  <path d="M140,158 L120,204 L128,150 Z" fill="#232b3a"/>
+  <path d="M111,150 L121,170 L113,153 Z" fill="#ffffff"/>
+  <path d="M129,150 L119,170 L127,153 Z" fill="#ffffff"/>
+  <path d="M116,156 L124,156 L122,163 L118,163 Z" fill="url(#lan)"/>
+  <path d="M118,163 L122,163 L124,206 L120,214 L116,206 Z" fill="url(#lan)"/>
+  <g id="c-arm-l"><path d="M86,168 C74,188 70,236 76,286 Q78,297 88,295 C93,246 95,200 98,178 Z" fill="url(#blazer)"/><ellipse cx="82" cy="297" rx="7.5" ry="9" fill="url(#skin)"/></g>
+  <g id="c-arm-r"><path d="M154,168 C166,188 170,236 164,286 Q162,297 152,295 C147,246 145,200 142,178 Z" fill="url(#blazer)"/><ellipse cx="158" cy="297" rx="7.5" ry="9" fill="url(#skin)"/></g>
+  <g id="c-head">
+    <path d="M120,64 C98,64 84,82 84,106 C84,132 96,151 120,155 C144,151 156,132 156,106 C156,82 142,64 120,64 Z" fill="url(#skin)"/>
+    <path d="M84,106 C80,142 84,192 92,242 C96,212 98,152 96,112 Z" fill="url(#hair)"/>
+    <path d="M156,106 C160,142 156,192 148,242 C144,212 142,152 144,112 Z" fill="url(#hair)"/>
+    <path d="M84,106 C82,84 96,66 120,66 C142,66 156,80 156,106 C150,90 150,80 128,78 C112,77 98,84 93,101 C91,105 86,106 84,106 Z" fill="url(#hair)"/>
+    <path d="M93,100 C106,86 132,85 147,97 C138,93 128,93 120,95 C108,97 99,100 96,106 Z" fill="#c99a63" opacity=".6"/>
+    <circle cx="88" cy="128" r="2.3" fill="#e9c46a"/><circle cx="152" cy="128" r="2.3" fill="#e9c46a"/>
+    <ellipse cx="100" cy="126" rx="9" ry="5" fill="url(#blush)"/>
+    <ellipse cx="140" cy="126" rx="9" ry="5" fill="url(#blush)"/>
+    <g id="c-brows">
+      <path id="c-brow-l" d="M97,99 Q105,94.5 114,98" stroke="#9a6f42" stroke-width="2.1" fill="none" stroke-linecap="round"/>
+      <path id="c-brow-r" d="M126,98 Q135,94.5 143,99" stroke="#9a6f42" stroke-width="2.1" fill="none" stroke-linecap="round"/>
+    </g>
+    <g id="c-eyes">
+      <path d="M98,111 Q107,105 117,111 Q107,117 98,111 Z" fill="#fff"/>
+      <path d="M123,111 Q133,105 142,111 Q133,117 123,111 Z" fill="#fff"/>
+      <circle cx="107.5" cy="111" r="4.6" fill="url(#iris)"/>
+      <circle cx="132.5" cy="111" r="4.6" fill="url(#iris)"/>
+      <circle cx="107.5" cy="111" r="2.2" fill="#1b120a"/>
+      <circle cx="132.5" cy="111" r="2.2" fill="#1b120a"/>
+      <circle cx="109" cy="109.4" r="1.3" fill="#fff"/>
+      <circle cx="134" cy="109.4" r="1.3" fill="#fff"/>
+      <path d="M97,110 Q107,104 118,110" stroke="#241a12" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <path d="M122,110 Q133,104 143,110" stroke="#241a12" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <path d="M118,110 l4,-2.5" stroke="#241a12" stroke-width="1.6" stroke-linecap="round"/>
+      <path d="M122,110 l-4,-2.5" stroke="#241a12" stroke-width="1.6" stroke-linecap="round"/>
+      <path d="M99,113 Q107,116 116,113" stroke="#6a5240" stroke-width="1" fill="none" opacity=".6"/>
+      <path d="M124,113 Q133,116 141,113" stroke="#6a5240" stroke-width="1" fill="none" opacity=".6"/>
+    </g>
+    <g id="c-glasses" stroke="#191920" stroke-width="2.4" fill="none">
+      <rect x="95" y="103.5" width="23" height="15" rx="4" fill="rgba(150,185,225,.12)"/>
+      <rect x="122" y="103.5" width="23" height="15" rx="4" fill="rgba(150,185,225,.12)"/>
+      <path d="M118,108 Q120,106 122,108"/>
+      <path d="M95,107 L85,106"/>
+      <path d="M145,107 L155,106"/>
+    </g>
+    <path d="M120,117 q-3,7 -1,10 q2,2 5,1" stroke="#d19a72" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+    <g id="c-mouth">
+      <path id="c-smile" d="M108,134 Q114,130 120,132 Q126,130 132,134 Q126,140 120,140 Q114,140 108,134 Z" fill="url(#lip)"/>
+      <path d="M108,134 Q120,136 132,134" stroke="#a24f47" stroke-width="1" fill="none"/>
+      <ellipse id="c-talk" cx="120" cy="136" rx="6" ry="4" fill="#7a2f2c"/>
+      <ellipse cx="122" cy="133" rx="3" ry="1.2" fill="rgba(255,255,255,.5)"/>
+    </g>
+  </g>
+  <g id="c-excl"><circle cx="188" cy="60" r="15" fill="#d03b3b"/><rect x="186" y="52" width="4" height="10" rx="2" fill="#fff"/><circle cx="188" cy="68" r="2.2" fill="#fff"/></g>
+</g></g>
+</svg>`;
+
+const Chloe = (function(){
+  let fig, bubble, dock, bubbleTimer, muted=false, voices=[];
+  function loadVoices(){ try{ voices = speechSynthesis.getVoices()||[]; }catch(e){ voices=[]; } }
+  function pickVoice(){
+    if(!voices.length) loadVoices();
+    const byName = voices.find(v=>/(karen|catherine|samantha|fiona|serena|moira|tessa|veena|libby|sonia|natasha|aria|jenny|female|zira|susan|hazel)/i.test(v.name)&&/^en/i.test(v.lang));
+    return byName
+      || voices.find(v=>/en-AU/i.test(v.lang))
+      || voices.find(v=>/en-GB/i.test(v.lang))
+      || voices.find(v=>/^en/i.test(v.lang)) || null;
+  }
+  function mount(){
+    const style=document.createElement('style'); style.textContent=CHLOE_CSS; document.head.appendChild(style);
+    dock=document.createElement('div'); dock.id='chloeDock';
+    dock.innerHTML=`<div id="chloeBubble"></div>
+      <div id="chloeFig" class="chloe-fig idle confident">${CHLOE_SVG}</div>
+      <div id="chloeCtrls"><button class="cbtn" id="cMute" title="Mute Chloe's voice">🔊</button><button class="cbtn" id="cMin" title="Hide Chloe">–</button></div>`;
+    document.body.appendChild(dock);
+    const mini=document.createElement('button'); mini.id='chloeMini'; mini.textContent='C'; mini.title='Show Chloe'; document.body.appendChild(mini);
+    fig=dock.querySelector('#chloeFig'); bubble=dock.querySelector('#chloeBubble');
+    dock.querySelector('#cMute').onclick=()=>{ muted=!muted; dock.querySelector('#cMute').textContent=muted?'🔇':'🔊'; if(muted&&'speechSynthesis'in window) speechSynthesis.cancel(); };
+    dock.querySelector('#cMin').onclick=()=>{ dock.classList.add('min'); };
+    mini.onclick=()=>{ dock.classList.remove('min'); };
+    fig.onclick=()=>{ if(lastText) say(lastText, lastOpts); };
+    if('speechSynthesis'in window){ loadVoices(); speechSynthesis.onvoiceschanged=loadVoices; }
+  }
+  let lastText='', lastOpts={};
+  function setMood(motion, emotion){
+    if(!fig) return;
+    fig.className='chloe-fig '+(motion||'idle')+' '+(emotion||'confident');
+  }
+  function talkFor(text){
+    if(!fig) return;
+    fig.classList.add('talking');
+    clearTimeout(bubbleTimer);
+    const words=(text.replace(/<[^>]+>/g,' ').match(/\S+/g)||[]).length;
+    bubbleTimer=setTimeout(()=>fig.classList.remove('talking'), Math.max(1400, words*300));
+  }
+  let audioEl=null;
+  function speak(text){
+    if(muted || !text) return false;
+    const clean=text.replace(/<[^>]+>/g,'').replace(/\s+/g,' ').trim();
+    // Live mode → branded OpenAI voice via the n8n TTS endpoint; fall back to the browser voice.
+    if(STATE.live && STATE.ttsUrl){ playTts(clean); return true; }
+    return browserSpeak(clean);
+  }
+  async function playTts(clean){
+    try{
+      if(audioEl){ try{audioEl.pause();}catch(e){} }
+      fig&&fig.classList.add('talking');
+      const res=await fetch(STATE.ttsUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:clean})});
+      if(!res.ok) throw new Error('tts '+res.status);
+      const blob=await res.blob();
+      audioEl=new Audio(URL.createObjectURL(blob));
+      audioEl.onended=audioEl.onerror=()=>fig&&fig.classList.remove('talking');
+      await audioEl.play();
+    }catch(e){ browserSpeak(clean); }
+  }
+  function browserSpeak(clean){
+    if(!('speechSynthesis'in window)) return false;
+    try{ speechSynthesis.cancel(); }catch(e){}
+    const u=new SpeechSynthesisUtterance(clean);
+    const v=pickVoice(); if(v){ u.voice=v; u.lang=v.lang; } else u.lang='en-AU';
+    u.rate=1.02; u.pitch=1.1;
+    u.onstart=()=>fig&&fig.classList.add('talking');
+    u.onend=u.onerror=()=>fig&&fig.classList.remove('talking');
+    try{ speechSynthesis.speak(u); return true; }catch(e){ return false; }
+  }
+  function say(text, opts){
+    opts=opts||{}; lastText=text; lastOpts=opts;
+    if(!fig) return;
+    setMood(opts.motion||'gesture', opts.emotion||'confident');
+    bubble.innerHTML=text; bubble.classList.add('show');
+    clearTimeout(bubble._t); bubble._t=setTimeout(()=>bubble.classList.remove('show'), 7000);
+    // alert/gesture are transient poses -> relax to idle after a beat (emotion stays)
+    if(opts.motion==='alert') setTimeout(()=>{ if(fig) fig.classList.replace('alert','idle'); }, 1200);
+    const spoke=speak(text);
+    talkFor(text); // visual mouth even if audio is muted/blocked
+  }
+  /* Drop-in for the backend contract: pass a chloe-app-v2 response and she reacts. */
+  function applyCharacterState(resp){
+    if(!resp) return;
+    const cs=resp.character_state||resp;
+    const motion = cs.animation==='ALERT_EXCLAIM' ? 'alert' : (cs.animation==='GESTURE_RIGHT_PANEL' ? 'gesture' : 'idle');
+    const emotion = cs.emotion==='concerned' ? 'concerned' : 'confident';
+    const text = (resp.ui_queue && resp.ui_queue.chat_bubble && resp.ui_queue.chat_bubble.text)
+      || (cs.chat_bubble && cs.chat_bubble.text) || resp.text;
+    if(text!=null && text!=='') say(text,{motion,emotion}); else setMood(motion,emotion);
+  }
+  return { mount, say, setMood, applyCharacterState };
+})();
+window.Chloe=Chloe;
+
+/* decide what Chloe says from the current review state (deduped) */
+let _chloeKey='';
+function chloeReviewReact(){
+  if(!window.Chloe || STATE.view!=='review') return;
+  const b=STATE.bill; let key,text,motion='gesture',emotion='confident';
+  if(STATE.mode==='atm_beerwah'){ key='parked'; text="Beerwah's parked for now — flip to Northlakes and I'll get to work."; motion='idle'; emotion='concerned'; }
+  else if(!b){ key='idle'; text="Hi, I'm Chloe. Drop a supplier bill on me and I'll take it from here."; motion='idle'; }
+  else if(b._processing){ key='proc'; text="On it — reading your bill now."; motion='idle'; }
+  else if(b.state==='review_required' && b.targeted_question){
+    key='q:'+b.targeted_question.id;
+    text = b.targeted_question.type==='supplier'
+      ? "I'm about <b>78%</b> sure this is Burson — can you confirm the right contact?"
+      : "Two tracked items look close for the Penrite. Which one should I use?";
+    motion='gesture';
+  }
+  else if(b.state==='ready_for_confirmation'){ key='ready'; text="All matched and coded — I've prepared a draft for <b>"+money(b.summary.total)+"</b>. Approve when you're ready."; motion='gesture'; }
+  else if(b.state==='completed'){ key='done'; text="Done — the draft's in Xero. I'll remember Burson and that Penrite SKU next time."; motion='idle'; }
+  else return;
+  if(key===_chloeKey) return; _chloeKey=key;
+  Chloe.say(text,{motion,emotion});
+}
+
+Chloe.mount();
+setView('review');
+</script>
+</body>
+</html>
